@@ -3,6 +3,10 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from pypinyin import lazy_pinyin, Style
 from snownlp import SnowNLP
+from storage import init_db,save_record,get_history
+from datetime import datetime, timezone
+
+init_db()  # ← 初始化数据库（如果不存在则创建）
 
 app = FastAPI()
 app.add_middleware(
@@ -45,10 +49,16 @@ def score_label(score):
 def analyze(req: AnalyzeRequest):
     text = req.text
     score = round(SnowNLP(text).sentiments, 2)
-    return {
+    result = {
         "text": text,
         "score": score,
         "label": score_label(score),
         "pinyin": " ".join(lazy_pinyin(text, style=Style.TONE)),
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),  # ← 新增
     }
+    save_record(result)                                                          # ← 存档到文件
+    return result
 
+@app.get("/api/history")
+def history():
+    return get_history(10)  # ← 只返回最新的10条记录
